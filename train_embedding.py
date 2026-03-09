@@ -81,7 +81,12 @@ BATCH_SIZE = 8          # small dataset: 34 products ≈ ~50 pairs
 LEARNING_RATE = 2e-5
 SEED = 42
 
-TRAIN_RESULT_DIR = os.path.join(_HERE, "models", "ray_train_results")
+# Use shared cluster storage if available (required for multi-node Ray Train jobs),
+# otherwise fall back to a local path for single-node development.
+if os.path.isdir("/mnt/cluster_storage"):
+    TRAIN_RESULT_DIR = "/mnt/cluster_storage/ecomm_ray_train_results"
+else:
+    TRAIN_RESULT_DIR = os.path.join(_HERE, "models", "ray_train_results")
 
 
 # ---------------------------------------------------------------------------

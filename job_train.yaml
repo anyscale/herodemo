@@ -13,6 +13,7 @@ requirements:
   - torch
   - sentence-transformers
   - numpy
+  - pandas
   - pyarrow
   - ray[train,data]
 
