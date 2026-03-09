@@ -1,5 +1,5 @@
 # Anyscale Service Configuration — E-Commerce Recommendation System
-# Deploy with:  anyscale service deploy -f service.yaml
+# Deploy from project root with:  anyscale service deploy -f setup/service.yaml
 # Status:       anyscale service status --name ecomm-recommender-service
 
 name: ecomm-recommender-service

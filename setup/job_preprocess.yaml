@@ -1,5 +1,5 @@
 # Anyscale Job — Stage 1: Ray Data Preprocessing
-# Submit with:  anyscale job submit -f job_preprocess.yaml
+# Submit from project root with:  anyscale job submit -f setup/job_preprocess.yaml
 
 name: ecomm-preprocess
 

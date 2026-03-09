@@ -1,5 +1,5 @@
 # Anyscale Job — Stage 2: Ray Train Embedding Fine-Tuning
-# Submit with:  anyscale job submit -f job_train.yaml
+# Submit from project root with:  anyscale job submit -f setup/job_train.yaml
 
 name: ecomm-train-embedding
 

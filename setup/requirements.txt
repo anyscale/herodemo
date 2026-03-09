@@ -24,6 +24,8 @@ uvicorn
 starlette
 requests
 
-# Notebook
+# Notebook / UI
 ipykernel
 ipywidgets
+matplotlib
+streamlit
