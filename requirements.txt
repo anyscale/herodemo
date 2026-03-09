@@ -1,0 +1,29 @@
+# E-Commerce Recommendation System — Python dependencies
+# Install with:  pip install -r requirements.txt
+
+# Core Ray
+ray[train,serve,data]
+
+# Deep learning
+torch
+transformers
+sentence-transformers
+
+# Image processing
+pillow
+
+# Data
+numpy
+pandas
+pyarrow
+
+# API / app
+fastapi
+pydantic
+uvicorn
+starlette
+requests
+
+# Notebook
+ipykernel
+ipywidgets

@@ -1,0 +1,43 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints
+
+# Virtual environment
+venv/
+.env/
+.envrc
+.venv/
+
+# macOS system files
+.DS_Store
+
+# Local Ray and Anyscale outputs/config
+ray_results/
+logs/
+*.ray_tmp/
+.ipython/
+
+# Python egg info
+*.egg-info/
+
+# VSCode/Editor settings
+.vscode/
+*.code-workspace
+
+# Misc
+*.swp
+*.swo
+# Ray logs and session state
+session_latest.log
+.debug.log
+
+# Anyscale artifacts
+.cache/
+.notebook/
+*.ray/
+# Ignore local notes
+notes-*.md

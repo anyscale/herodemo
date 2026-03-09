@@ -1,0 +1,8 @@
+name: herodemo-workspace
+
+image_uri: anyscale/ray:2.54.0-slim-py312
+
+compute_config:
+  head_node:
+    instance_type: m5.2xlarge
+  worker_nodes: []
