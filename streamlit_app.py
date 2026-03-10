@@ -93,7 +93,7 @@ else:
     image_bytes = uploaded.read()
     display_image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
 
-st.image(display_image, caption="Query image", use_container_width=True)
+st.image(display_image, caption="Query image")
 
 # ---------------------------------------------------------------------------
 # Call the service
