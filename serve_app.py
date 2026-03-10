@@ -61,9 +61,10 @@ from starlette.requests import Request
 # ---------------------------------------------------------------------------
 
 BLIP_MODEL = "Salesforce/blip-image-captioning-base"
-EMBEDDING_MODEL_DIR = os.environ.get("EMBEDDING_MODEL_DIR", "models/embedding_model")
-EMBEDDINGS_PATH    = os.environ.get("EMBEDDINGS_PATH",    "models/product_embeddings.npy")
-METADATA_PATH      = os.environ.get("METADATA_PATH",      "models/product_metadata.json")
+_HERE = Path(__file__).parent.resolve()
+EMBEDDING_MODEL_DIR = os.environ.get("EMBEDDING_MODEL_DIR", str(_HERE / "models/embedding_model"))
+EMBEDDINGS_PATH    = os.environ.get("EMBEDDINGS_PATH",    str(_HERE / "models/product_embeddings.npy"))
+METADATA_PATH      = os.environ.get("METADATA_PATH",      str(_HERE / "models/product_metadata.json"))
 
 TOP_K = int(os.environ.get("TOP_K", "5"))
 
@@ -291,4 +292,5 @@ if __name__ == "__main__":
     import ray
 
     ray.init(ignore_reinit_error=True)
-    serve.run(app, host="0.0.0.0", port=8000, blocking=True)
+    serve.start(http_options={"host": "0.0.0.0", "port": 8000})
+    serve.run(app, blocking=True)
