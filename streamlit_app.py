@@ -81,10 +81,10 @@ uploaded = st.file_uploader(
 # Demo image fallback: generate a synthetic headphones-like image
 if uploaded is None:
     st.info("No image uploaded — using a demo synthetic image.")
-    from utils import make_product_image, PRODUCTS
+    from utils import get_product_image, PRODUCTS
 
     demo_product = PRODUCTS[0]  # Wireless Headphones
-    demo_arr = make_product_image(demo_product, seed=0)
+    demo_arr = get_product_image(demo_product)
     demo_pil = Image.fromarray(demo_arr)
     buf = io.BytesIO()
     demo_pil.save(buf, format="JPEG")

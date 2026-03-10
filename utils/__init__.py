@@ -138,6 +138,18 @@ def make_product_image(product: Dict, seed: int = 0) -> np.ndarray:
     return np.array(img)
 
 
+_DEMO_IMAGES_DIR = Path(__file__).parent.parent / "data" / "demo_images"
+
+
+def get_product_image(product: Dict) -> np.ndarray:
+    """Load the bundled realistic product image, falling back to synthetic."""
+    safe_name = product["name"].replace(" ", "_").replace("/", "-")
+    path = _DEMO_IMAGES_DIR / f"{safe_name}.jpg"
+    if path.exists():
+        return np.array(Image.open(path).convert("RGB"))
+    return make_product_image(product, seed=hash(product["name"]) % 1000)
+
+
 def image_to_bytes(img_array: np.ndarray, fmt: str = "JPEG") -> bytes:
     """Convert numpy (H,W,3) uint8 array to compressed image bytes."""
     buf = io.BytesIO()
