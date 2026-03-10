@@ -76,7 +76,7 @@ BASE_MODEL = "sentence-transformers/all-MiniLM-L6-v2"  # 22M params, CPU-fast
 EMBEDDING_DIM = 384    # output size of all-MiniLM-L6-v2
 MAX_SEQ_LEN = 128
 
-NUM_EPOCHS = 5
+NUM_EPOCHS = 2
 BATCH_SIZE = 8          # small dataset: 34 products ≈ ~50 pairs
 LEARNING_RATE = 2e-5
 SEED = 42
