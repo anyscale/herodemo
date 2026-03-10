@@ -199,7 +199,7 @@ def generate_catalog(
 
     records = []
     for i, p in enumerate(products):
-        img_array = make_product_image(p, seed=seed + i)
+        img_array = get_product_image(p)
         img_bytes = image_to_bytes(img_array)
 
         record = {
