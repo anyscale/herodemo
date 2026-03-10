@@ -234,3 +234,15 @@ def preprocess_text_batch(batch: Dict) -> Dict:
 def decode_image_tensor(raw: bytes) -> np.ndarray:
     """Inverse of preprocess_image_batch: bytes -> float32 (224,224,3)."""
     return np.frombuffer(raw, dtype=np.float32).reshape(*IMAGE_SIZE, 3)
+
+
+# ---------------------------------------------------------------------------
+# Ray helpers
+# ---------------------------------------------------------------------------
+
+def init_ray() -> None:
+    """Initialize Ray with progress bars enabled (idempotent)."""
+    import ray
+    import ray.data
+    ray.init(ignore_reinit_error=True)
+    ray.data.DataContext.get_current().enable_progress_bars = True

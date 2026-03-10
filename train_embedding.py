@@ -36,29 +36,21 @@ References
 
 import json
 import os
-import tempfile
 import time
 from pathlib import Path
-from typing import List, Tuple
 
 import numpy as np
 import ray
 import ray.data
 import torch
-import torch.nn.functional as F
 from ray.train import (
-    Checkpoint,
     CheckpointConfig,
     FailureConfig,
     RunConfig,
     ScalingConfig,
-    get_checkpoint,
-    get_context,
-    report,
 )
 from ray.train.torch import TorchTrainer
-from torch import nn
-from torch.utils.data import DataLoader, Dataset
+from utils.training import ContrastivePairDataset, train_loop_per_worker  # noqa: F401
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -87,167 +79,6 @@ if os.path.isdir("/mnt/cluster_storage"):
     TRAIN_RESULT_DIR = "/mnt/cluster_storage/ecomm_ray_train_results"
 else:
     TRAIN_RESULT_DIR = os.path.join(_HERE, "models", "ray_train_results")
-
-
-# ---------------------------------------------------------------------------
-# Contrastive dataset
-# ---------------------------------------------------------------------------
-
-class ContrastivePairDataset(Dataset):
-    """
-    Generates (anchor, positive, label=1.0) pairs from products in the same
-    category, and (anchor, negative, label=-1.0) pairs from different
-    categories.  Labels match CosineSimilarityLoss expectations.
-    """
-
-    def __init__(self, records: List[dict], neg_ratio: float = 0.5, seed: int = SEED):
-        self.records = records
-        rng = np.random.default_rng(seed)
-
-        # Group indices by category
-        cat_to_idx: dict[str, list] = {}
-        for i, r in enumerate(records):
-            cat_to_idx.setdefault(r["category"], []).append(i)
-
-        pairs: List[Tuple[str, str, float]] = []
-
-        # Positives: all within-category pairs
-        for indices in cat_to_idx.values():
-            for i, a in enumerate(indices):
-                for b in indices[i + 1 :]:
-                    pairs.append((records[a]["text_clean"], records[b]["text_clean"], 1.0))
-
-        # Negatives: random cross-category pairs (at most neg_ratio × positives)
-        cats = list(cat_to_idx.keys())
-        n_neg = max(1, int(len(pairs) * neg_ratio))
-        for _ in range(n_neg):
-            cat_a, cat_b = rng.choice(cats, size=2, replace=False)
-            ia = rng.choice(cat_to_idx[cat_a])
-            ib = rng.choice(cat_to_idx[cat_b])
-            pairs.append((records[ia]["text_clean"], records[ib]["text_clean"], -1.0))
-
-        rng.shuffle(pairs)
-        self.pairs = pairs
-
-    def __len__(self):
-        return len(self.pairs)
-
-    def __getitem__(self, idx):
-        a, b, label = self.pairs[idx]
-        return a, b, torch.tensor(label, dtype=torch.float32)
-
-
-# ---------------------------------------------------------------------------
-# Training loop (runs inside each Ray Train worker)
-# ---------------------------------------------------------------------------
-
-def _forward_embeddings(model, texts: list, device: str) -> torch.Tensor:
-    """Run a SentenceTransformer forward pass with gradient tracking."""
-    features = model.tokenize(texts)
-    features = {k: v.to(device) for k, v in features.items()}
-    out = model(features)
-    return out["sentence_embedding"]
-
-
-def train_loop_per_worker(config: dict) -> None:
-    """Fine-tune the embedding model on each distributed worker."""
-    from sentence_transformers import SentenceTransformer
-
-    rank = get_context().get_world_rank()
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-
-    # Records are passed via config (dataset is small enough)
-    records = config["records"]
-
-    if rank == 0:
-        print(f"Worker {rank}: {len(records)} product records")
-
-    # ------------------------------------------------------------------
-    # Build contrastive pairs
-    # ------------------------------------------------------------------
-    pair_dataset = ContrastivePairDataset(records, seed=config["seed"])
-
-    if rank == 0:
-        print(f"  Contrastive pairs: {len(pair_dataset)} "
-              f"(pos+neg within/across categories)")
-
-    def collate(batch):
-        texts_a, texts_b, labels = zip(*batch)
-        return list(texts_a), list(texts_b), torch.stack(labels)
-
-    loader = DataLoader(
-        pair_dataset,
-        batch_size=config["batch_size"],
-        shuffle=True,
-        collate_fn=collate,
-    )
-
-    # ------------------------------------------------------------------
-    # Load sentence-transformer model
-    # ------------------------------------------------------------------
-    model = SentenceTransformer(config["base_model"], device=device)
-
-    optimizer = torch.optim.AdamW(
-        model.parameters(), lr=config["lr"], weight_decay=0.01
-    )
-
-    # Resume from checkpoint if available
-    start_epoch = 0
-    ckpt = get_checkpoint()
-    if ckpt:
-        with ckpt.as_directory() as ckpt_dir:
-            meta = torch.load(os.path.join(ckpt_dir, "meta.pt"), map_location="cpu")
-            start_epoch = meta.get("epoch", 0) + 1
-            model = SentenceTransformer(ckpt_dir, device=device)
-        if rank == 0:
-            print(f"Resumed from checkpoint at epoch {start_epoch}")
-
-    # ------------------------------------------------------------------
-    # Training loop
-    # ------------------------------------------------------------------
-    if rank == 0:
-        print(f"\nFine-tuning {config['base_model']} on {device}")
-        print(f"Epochs: {config['epochs']}  |  Batch size: {config['batch_size']}")
-        print(f"Pairs per epoch: {len(pair_dataset)}")
-        print("-" * 50)
-
-    for epoch in range(start_epoch, config["epochs"]):
-        model.train()
-        total_loss = 0.0
-        n_batches = 0
-
-        for texts_a, texts_b, labels in loader:
-            labels = labels.to(device)
-
-            # Use forward() directly so gradients flow (encode() uses no_grad)
-            emb_a = _forward_embeddings(model, texts_a, device)
-            emb_b = _forward_embeddings(model, texts_b, device)
-
-            cos_sim = F.cosine_similarity(emb_a, emb_b)
-            loss = F.mse_loss(cos_sim, labels)
-
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
-
-            total_loss += loss.item()
-            n_batches += 1
-
-        avg_loss = total_loss / max(1, n_batches)
-
-        if rank == 0:
-            print(f"Epoch {epoch + 1:2d}/{config['epochs']}  loss={avg_loss:.4f}")
-
-        # Checkpoint on rank-0 only
-        with tempfile.TemporaryDirectory() as tmpdir:
-            if rank == 0:
-                model.save(tmpdir)
-                torch.save({"epoch": epoch}, os.path.join(tmpdir, "meta.pt"))
-                ckpt_out = Checkpoint.from_directory(tmpdir)
-            else:
-                ckpt_out = None
-
-            report({"epoch": epoch, "train_loss": avg_loss}, checkpoint=ckpt_out)
 
 
 # ---------------------------------------------------------------------------
