@@ -2,21 +2,17 @@
 
 An end-to-end recommendation system using Ray Data, Ray Train, and Ray Serve on Anyscale.
 
-## Main Walkthrough
+The main notebook is [notebook.ipynb](./notebook.ipynb)
 
-The main notebook is in **`notebook.ipynb`**.
+## Start a Workspace from Terminal
 
-## Run as Anyscale Jobs
+1. Install the Anyscale CLI: [Quickstart CLI](https://docs.anyscale.com/reference/quickstart-cli)
+1. Clone this repo `git clone https://github.com/anyscale/herodemo.git`
+1. `anyscale workspace_v2 create --name <your-workspace-name> --config-file workspace.yaml`
+1. `anyscale workspace_v2 start --id <id-output-from-last-step>`
+1. Then search for it in the console: https://console.anyscale.com/workspaces
 
-```bash
-# Stage 1: Preprocess product data
-anyscale job submit -f setup/job_preprocess.yaml
-
-# Stage 2: Fine-tune embedding model
-anyscale job submit -f setup/job_train.yaml
-```
-
-## Deploy as a Service
+## Deploy as a Service (Optional)
 
 ```bash
 anyscale service deploy -f setup/service.yaml
@@ -24,14 +20,3 @@ anyscale service deploy -f setup/service.yaml
 # Check status
 anyscale service status --name ecomm-recommender-service
 ```
-
-## Start a Workspace
-
-1. `anyscale workspace_v2 create --name <your-workspace-name> --config-file workspace.yaml`
-1. Then search for it in the console: https://console.anyscale.com/workspaces
-1. Start the workspace
-1. Click on `VSCode`
-1. In the terminal clone the repo: `git clone https://github.com/anyscale/herodemo.git`
-
-
-
