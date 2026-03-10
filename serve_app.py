@@ -62,9 +62,15 @@ from starlette.requests import Request
 
 BLIP_MODEL = "Salesforce/blip-image-captioning-base"
 _HERE = Path(__file__).parent.resolve()
-EMBEDDING_MODEL_DIR = os.environ.get("EMBEDDING_MODEL_DIR", str(_HERE / "models/embedding_model"))
-EMBEDDINGS_PATH    = os.environ.get("EMBEDDINGS_PATH",    str(_HERE / "models/product_embeddings.npy"))
-METADATA_PATH      = os.environ.get("METADATA_PATH",      str(_HERE / "models/product_metadata.json"))
+EMBEDDING_MODEL_DIR = os.environ.get(
+    "EMBEDDING_MODEL_DIR", str(_HERE / "models/embedding_model")
+)
+EMBEDDINGS_PATH = os.environ.get(
+    "EMBEDDINGS_PATH", str(_HERE / "models/product_embeddings.npy")
+)
+METADATA_PATH = os.environ.get(
+    "METADATA_PATH", str(_HERE / "models/product_metadata.json")
+)
 
 TOP_K = int(os.environ.get("TOP_K", "5"))
 
@@ -72,13 +78,15 @@ TOP_K = int(os.environ.get("TOP_K", "5"))
 # Pydantic schema
 # ---------------------------------------------------------------------------
 
+
 class RecommendRequest(BaseModel):
-    image_base64: str   # standard base64-encoded image bytes
+    image_base64: str  # standard base64-encoded image bytes
 
 
 # ---------------------------------------------------------------------------
 # Deployment 1: Image → Caption (BLIP)
 # ---------------------------------------------------------------------------
+
 
 @serve.deployment(
     num_replicas=1,
@@ -97,14 +105,16 @@ class ImageToText:
         print(f"[ImageToText] Loading {BLIP_MODEL} on {self.device} …")
 
         self.processor = BlipProcessor.from_pretrained(BLIP_MODEL)
-        self.model     = BlipForConditionalGeneration.from_pretrained(BLIP_MODEL)
+        self.model = BlipForConditionalGeneration.from_pretrained(BLIP_MODEL)
         self.model.to(self.device).eval()
 
         # Warm-up pass to avoid first-request latency spike
         from PIL import Image as PILImage
+
         dummy = PILImage.new("RGB", (224, 224), color=(128, 128, 128))
         inputs = self.processor(images=dummy, return_tensors="pt").to(self.device)
         import torch
+
         with torch.no_grad():
             self.model.generate(**inputs, max_new_tokens=30)
 
@@ -136,6 +146,7 @@ class ImageToText:
 # Deployment 2: Text → Top-K products (sentence-transformer + cosine index)
 # ---------------------------------------------------------------------------
 
+
 @serve.deployment(
     num_replicas=1,
     ray_actor_options={"num_cpus": 2},
@@ -152,38 +163,44 @@ class ProductRecommender:
     def __init__(self):
         from sentence_transformers import SentenceTransformer
 
-        print(f"[ProductRecommender] Loading embedding model from {EMBEDDING_MODEL_DIR} …")
+        print(
+            f"[ProductRecommender] Loading embedding model from {EMBEDDING_MODEL_DIR} …"
+        )
         self.model = SentenceTransformer(EMBEDDING_MODEL_DIR)
 
         print(f"[ProductRecommender] Loading product index …")
-        self.embeddings = np.load(EMBEDDINGS_PATH).astype(np.float32)      # (N, D)
+        self.embeddings = np.load(EMBEDDINGS_PATH).astype(np.float32)  # (N, D)
         # L2-normalise for fast cosine via dot product
         norms = np.linalg.norm(self.embeddings, axis=1, keepdims=True) + 1e-9
         self.embeddings_norm = self.embeddings / norms
 
         with open(METADATA_PATH) as f:
-            self.metadata = json.load(f)    # list of {product_id, name, category}
+            self.metadata = json.load(f)  # list of {product_id, name, category}
 
         print(f"[ProductRecommender] Ready. {len(self.metadata)} products indexed.")
 
     def recommend(self, query_text: str, top_k: int = TOP_K) -> list[dict]:
         """Return the top-K products most similar to query_text."""
-        q_emb = self.model.encode([query_text], convert_to_numpy=True)[0].astype(np.float32)
+        q_emb = self.model.encode([query_text], convert_to_numpy=True)[0].astype(
+            np.float32
+        )
         q_norm = q_emb / (np.linalg.norm(q_emb) + 1e-9)
 
-        sims = self.embeddings_norm @ q_norm          # (N,)
+        sims = self.embeddings_norm @ q_norm  # (N,)
         top_idx = np.argsort(sims)[::-1][:top_k]
 
         results = []
         for rank, idx in enumerate(top_idx, start=1):
             m = self.metadata[idx]
-            results.append({
-                "rank":       rank,
-                "product_id": m["product_id"],
-                "name":       m["name"],
-                "category":   m["category"],
-                "similarity": float(round(float(sims[idx]), 4)),
-            })
+            results.append(
+                {
+                    "rank": rank,
+                    "product_id": m["product_id"],
+                    "name": m["name"],
+                    "category": m["category"],
+                    "similarity": float(round(float(sims[idx]), 4)),
+                }
+            )
         return results
 
     def check_health(self):
@@ -219,7 +236,7 @@ class RecommendationService:
         image_to_text: DeploymentHandle,
         product_recommender: DeploymentHandle,
     ):
-        self.image_to_text      = image_to_text
+        self.image_to_text = image_to_text
         self.product_recommender = product_recommender
         print("[RecommendationService] Ready.")
 
@@ -269,7 +286,7 @@ class RecommendationService:
         )
 
         return {
-            "caption":         caption,
+            "caption": caption,
             "recommendations": recommendations,
         }
 

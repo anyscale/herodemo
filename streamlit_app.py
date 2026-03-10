@@ -26,7 +26,7 @@ from PIL import Image
 
 SERVE_URL = os.environ.get("SERVE_URL", "http://localhost:8000")
 RECOMMEND_ENDPOINT = f"{SERVE_URL}/recommend"
-HEALTH_ENDPOINT    = f"{SERVE_URL}/health"
+HEALTH_ENDPOINT = f"{SERVE_URL}/health"
 
 st.set_page_config(
     page_title="Product Recommender",
@@ -82,7 +82,8 @@ uploaded = st.file_uploader(
 if uploaded is None:
     st.info("No image uploaded — using a demo synthetic image.")
     from utils import make_product_image, PRODUCTS
-    demo_product = PRODUCTS[0]   # Wireless Headphones
+
+    demo_product = PRODUCTS[0]  # Wireless Headphones
     demo_arr = make_product_image(demo_product, seed=0)
     demo_pil = Image.fromarray(demo_arr)
     buf = io.BytesIO()

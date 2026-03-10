@@ -28,8 +28,10 @@ class ContrastivePairDataset(Dataset):
         pairs = []
         for indices in cat_to_idx.values():
             for i, a in enumerate(indices):
-                for b in indices[i + 1:]:
-                    pairs.append((records[a]["text_clean"], records[b]["text_clean"], 1.0))
+                for b in indices[i + 1 :]:
+                    pairs.append(
+                        (records[a]["text_clean"], records[b]["text_clean"], 1.0)
+                    )
 
         cats = list(cat_to_idx.keys())
         n_neg = max(1, int(len(pairs) * neg_ratio))
@@ -72,12 +74,16 @@ def train_loop_per_worker(config: dict) -> None:
         return list(texts_a), list(texts_b), torch.stack(labels)
 
     loader = DataLoader(
-        pair_dataset, batch_size=config["batch_size"],
-        shuffle=True, collate_fn=collate,
+        pair_dataset,
+        batch_size=config["batch_size"],
+        shuffle=True,
+        collate_fn=collate,
     )
 
     model = SentenceTransformer(config["base_model"], device=device)
-    optimizer = torch.optim.AdamW(model.parameters(), lr=config["lr"], weight_decay=0.01)
+    optimizer = torch.optim.AdamW(
+        model.parameters(), lr=config["lr"], weight_decay=0.01
+    )
 
     start_epoch = 0
     ckpt = get_checkpoint()
@@ -88,8 +94,10 @@ def train_loop_per_worker(config: dict) -> None:
             model = SentenceTransformer(d, device=device)
 
     if rank == 0:
-        print(f"Fine-tuning {config['base_model']} on {device}  "
-              f"({config['epochs']} epochs, {len(pair_dataset)} pairs)")
+        print(
+            f"Fine-tuning {config['base_model']} on {device}  "
+            f"({config['epochs']} epochs, {len(pair_dataset)} pairs)"
+        )
 
     for epoch in range(start_epoch, config["epochs"]):
         model.train()
