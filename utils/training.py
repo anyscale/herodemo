@@ -89,7 +89,7 @@ def train_loop_per_worker(config: dict) -> None:
     ckpt = get_checkpoint()
     if ckpt:
         with ckpt.as_directory() as d:
-            meta = torch.load(os.path.join(d, "meta.pt"), map_location="cpu")
+            meta = torch.load(os.path.join(d, "meta.pt"), map_location="cpu", weights_only=False)
             start_epoch = meta.get("epoch", 0) + 1
             model = SentenceTransformer(d, device=device)
 

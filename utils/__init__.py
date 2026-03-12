@@ -253,8 +253,18 @@ def decode_image_tensor(raw: bytes) -> np.ndarray:
 # ---------------------------------------------------------------------------
 
 def init_ray() -> None:
-    """Initialize Ray with progress bars enabled (idempotent)."""
+    """Initialize Ray with reduced logging (idempotent)."""
+    import logging
     import ray
     import ray.data
-    ray.init(ignore_reinit_error=True)
+
+    for name in ["ray", "ray.data", "ray.train", "ray.tune", "ray.serve",
+                 "ray._private", "ray.runtime_env"]:
+        logging.getLogger(name).setLevel(logging.WARNING)
+
+    ray.init(
+        ignore_reinit_error=True,
+        log_to_driver=False,
+        logging_level=logging.WARNING,
+    )
     ray.data.DataContext.get_current().enable_progress_bars = True

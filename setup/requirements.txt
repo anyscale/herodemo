@@ -28,4 +28,5 @@ requests
 ipykernel
 ipywidgets
 matplotlib
+scikit-learn
 streamlit

@@ -1,7 +1,76 @@
 """Visualization utilities for embedding analysis."""
 
+from collections import Counter
+from typing import Callable, Dict, List
+
 import numpy as np
 import matplotlib.pyplot as plt
+
+
+def plot_category_samples(products: List[Dict], categories: List[str], get_image_fn: Callable) -> None:
+    """Show one sample product image per category."""
+    fig, axes = plt.subplots(1, len(categories), figsize=(15, 3))
+    for ax, cat in zip(axes, categories):
+        product = next(p for p in products if p["category"] == cat)
+        img = get_image_fn(product)
+        ax.imshow(img)
+        ax.set_title(cat, fontsize=9)
+        ax.axis("off")
+    plt.suptitle("One sample image per category", fontsize=12)
+    plt.tight_layout()
+    plt.show()
+
+
+def plot_products_per_category(products: List[Dict]) -> None:
+    """Horizontal bar chart of product counts per category."""
+    cats = [p["category"] for p in products]
+    counts = sorted(Counter(cats).items())
+    plt.barh(*zip(*counts))
+    plt.xlabel("Products")
+    plt.title("Products per category")
+    plt.tight_layout()
+    plt.show()
+
+
+def plot_training_loss(metrics_dataframe) -> None:
+    """Line plot of training loss across epochs."""
+    m = metrics_dataframe
+    plt.plot(m["epoch"] + 1, m["train_loss"], marker="o")
+    plt.xlabel("Epoch")
+    plt.ylabel("Loss")
+    plt.title("Training Loss")
+    plt.tight_layout()
+    plt.show()
+
+
+def plot_recommendations(
+    query_img: np.ndarray,
+    recommendations: List[Dict],
+    products: List[Dict],
+    caption: str,
+    get_image_fn: Callable,
+) -> None:
+    """Show query image alongside recommended products."""
+    fig, axes = plt.subplots(1, len(recommendations) + 1, figsize=(18, 3))
+
+    axes[0].imshow(query_img)
+    axes[0].set_title("Query image", fontsize=9, color="navy", fontweight="bold")
+    axes[0].axis("off")
+
+    all_prods = {p["name"]: p for p in products}
+    for ax, rec in zip(axes[1:], recommendations):
+        prod_name = rec["name"]
+        prod = all_prods.get(prod_name, {"name": prod_name, "category": rec["category"]})
+        rec_img = get_image_fn({**prod, "category": rec["category"]})
+        ax.imshow(rec_img)
+        ax.set_title(
+            f"{rec['rank']}. {rec['name'][:18]}\n{rec['similarity']:.2f}", fontsize=8
+        )
+        ax.axis("off")
+
+    plt.suptitle(f'Caption: "{caption}"', fontsize=11)
+    plt.tight_layout()
+    plt.show()
 
 
 def plot_similarity_heatmap(
