@@ -71,6 +71,56 @@ PRODUCTS = [
 
 IMAGE_SIZE = (224, 224)
 
+# Adjectives and category-specific suffixes used to generate product variants
+_VARIANT_ADJECTIVES = [
+    "Premium", "Pro", "Lite", "Ultra", "Essential", "Plus",
+    "Max", "Mini", "Elite", "Classic", "Advanced", "Standard",
+    "Signature", "Sport", "Studio", "Travel",
+]
+
+_VARIANT_SUFFIXES = {
+    "Electronics": [
+        "Includes extended warranty.",
+        "Optimized for remote work.",
+        "Designed for content creators.",
+        "Features USB-C connectivity.",
+        "With advanced noise reduction.",
+        "Smart power management included.",
+    ],
+    "Clothing": [
+        "Available in 8 colors.",
+        "Made from sustainable materials.",
+        "Reinforced stitching throughout.",
+        "Features moisture-wicking fabric.",
+        "UPF 50+ sun protection.",
+        "Slim-fit design.",
+    ],
+    "Books": [
+        "Includes digital access code.",
+        "Updated 2024 edition.",
+        "With practice exercises throughout.",
+        "Annotated edition.",
+        "Includes 100+ code examples.",
+        "With online companion resources.",
+    ],
+    "Home & Garden": [
+        "Dishwasher safe.",
+        "BPA-free construction.",
+        "Lifetime warranty included.",
+        "Eco-friendly packaging.",
+        "NSF certified.",
+        "Made from recycled materials.",
+    ],
+    "Sports": [
+        "With antimicrobial coating.",
+        "Suitable for all fitness levels.",
+        "Includes carrying bag.",
+        "Made from recycled materials.",
+        "Ergonomic grip design.",
+        "Machine washable.",
+    ],
+}
+
 
 # ---------------------------------------------------------------------------
 # Synthetic image generation
@@ -142,8 +192,13 @@ _DEMO_IMAGES_DIR = Path(__file__).parent.parent / "data" / "demo_images"
 
 
 def get_product_image(product: Dict) -> np.ndarray:
-    """Load the bundled realistic product image, falling back to synthetic."""
-    safe_name = product["name"].replace(" ", "_").replace("/", "-")
+    """Load the bundled realistic product image, falling back to synthetic.
+
+    Variant products created by ``expand_catalog`` carry a ``_base_name`` key
+    pointing to their base product so they reuse that product's real image.
+    """
+    image_name = product.get("_base_name", product["name"])
+    safe_name = image_name.replace(" ", "_").replace("/", "-")
     path = _DEMO_IMAGES_DIR / f"{safe_name}.jpg"
     if path.exists():
         return np.array(Image.open(path).convert("RGB"))
@@ -215,6 +270,42 @@ def generate_catalog(
 
     print(f"Generated {len(records)} products in '{output_dir}'")
     return records
+
+
+def expand_catalog(
+    base_products: Optional[List[Dict]] = None,
+    target_size: int = 1000,
+    seed: int = 42,
+) -> List[Dict]:
+    """Expand the base catalog to *target_size* by generating product variants.
+
+    Variant products share images with their base product via ``_base_name``,
+    but have distinct names and descriptions — giving the embedding model
+    diverse training signal without requiring additional real photos.
+    """
+    if base_products is None:
+        base_products = PRODUCTS
+    if not base_products:
+        raise ValueError("base_products cannot be empty")
+
+    rng = random.Random(seed)
+    expanded = [dict(p) for p in base_products]  # start with originals
+
+    i = 0
+    while len(expanded) < target_size:
+        base = base_products[i % len(base_products)]
+        adj = rng.choice(_VARIANT_ADJECTIVES)
+        suffix = rng.choice(_VARIANT_SUFFIXES[base["category"]])
+        expanded.append({
+            "name": f"{adj} {base['name']}",
+            "category": base["category"],
+            "price": round(base["price"] * rng.uniform(0.75, 1.4), 2),
+            "description": base["description"].rstrip(".") + ". " + suffix,
+            "_base_name": base["name"],
+        })
+        i += 1
+
+    return expanded[:target_size]
 
 
 # ---------------------------------------------------------------------------
