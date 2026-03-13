@@ -1,6 +1,5 @@
 """High-level stage runner functions used by the demo notebook."""
 
-import glob as _glob
 import os
 import shutil
 import time
@@ -73,7 +72,6 @@ def run_training(
     Saves the best checkpoint to *model_output_dir* and returns the Ray Train
     ``Result`` object (includes ``metrics_dataframe`` for plotting).
     """
-    import pandas as _pd
     import torch
     from ray.train import CheckpointConfig, FailureConfig, RunConfig, ScalingConfig
     from ray.train.torch import TorchTrainer
@@ -86,9 +84,11 @@ def run_training(
     print("STAGE 2 — RAY TRAIN: EMBEDDING FINE-TUNING")
     print("=" * 60)
 
-    parquet_files = sorted(_glob.glob(f"{preprocessed_dir}/*.parquet"))
-    df = _pd.concat([_pd.read_parquet(f) for f in parquet_files], ignore_index=True)
-    records = df[["product_id", "name", "category", "text_clean"]].to_dict(orient="records")
+    records = (
+        ray.data.read_parquet(preprocessed_dir)
+        .select_columns(["product_id", "name", "category", "text_clean"])
+        .take_all()
+    )
     print(f"\nLoaded {len(records)} records for training")
 
     Path(train_result_dir).mkdir(parents=True, exist_ok=True)
