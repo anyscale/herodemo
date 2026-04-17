@@ -6,5 +6,7 @@ requirements: setup/requirements.txt
 
 compute_config:
   head_node:
-    instance_type: m5.2xlarge
+    required_resources:
+      CPU: 7
+      memory: 14Gi
   worker_nodes: []
