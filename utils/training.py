@@ -55,7 +55,9 @@ class ContrastivePairDataset(Dataset):
 def _forward_embeddings(model, texts, device):
     """Run a SentenceTransformer forward pass with gradient tracking."""
     features = model.tokenize(texts)
-    features = {k: v.to(device) for k, v in features.items()}
+    features = {
+        k: v.to(device) for k, v in features.items() if isinstance(v, torch.Tensor)
+    }
     return model(features)["sentence_embedding"]
 
 
@@ -89,7 +91,9 @@ def train_loop_per_worker(config: dict) -> None:
     ckpt = get_checkpoint()
     if ckpt:
         with ckpt.as_directory() as d:
-            meta = torch.load(os.path.join(d, "meta.pt"), map_location="cpu", weights_only=False)
+            meta = torch.load(
+                os.path.join(d, "meta.pt"), map_location="cpu", weights_only=False
+            )
             start_epoch = meta.get("epoch", 0) + 1
             model = SentenceTransformer(d, device=device)
 
