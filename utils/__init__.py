@@ -231,7 +231,7 @@ def clean_text(text: str) -> str:
 
 def make_training_text(product: Dict) -> str:
     """Combine product fields into a single string for embedding training."""
-    return f"{product['name']}. {product['description']} Category: {product['category']}."
+    return f"{product['name']}. {product['description']}"
 
 
 # ---------------------------------------------------------------------------
