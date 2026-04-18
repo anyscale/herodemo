@@ -1,7 +1,8 @@
 """Visualization utilities for embedding analysis."""
 
+import os
 from collections import Counter
-from typing import Callable, Dict, List
+from typing import Callable, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -95,8 +96,15 @@ def plot_similarity_heatmap(
     plt.show()
 
 
-def plot_tsne_comparison(base_embs, tuned_embs, labels):
-    """Side-by-side t-SNE of base vs fine-tuned embeddings, coloured by category."""
+def _plot_tsne_side_by_side(
+    base_embs: np.ndarray,
+    tuned_embs: np.ndarray,
+    labels: List[str],
+    *,
+    base_title: str = "Base model (all-MiniLM-L6-v2)",
+    tuned_title: str = "Fine-tuned (contrastive loss)",
+) -> None:
+    """Side-by-side t-SNE of two embedding matrices, coloured by category labels."""
     from sklearn.manifold import TSNE
 
     cat_list = sorted(set(labels))
@@ -105,8 +113,8 @@ def plot_tsne_comparison(base_embs, tuned_embs, labels):
 
     fig, axes = plt.subplots(1, 2, figsize=(14, 5))
     for ax, embs, title in [
-        (axes[0], base_embs, "Base model (all-MiniLM-L6-v2)"),
-        (axes[1], tuned_embs, "Fine-tuned (contrastive loss)"),
+        (axes[0], base_embs, base_title),
+        (axes[1], tuned_embs, tuned_title),
     ]:
         xy = TSNE(n_components=2, perplexity=10, random_state=42).fit_transform(embs)
         ax.scatter(
@@ -131,6 +139,67 @@ def plot_tsne_comparison(base_embs, tuned_embs, labels):
     plt.suptitle("t-SNE: product embeddings coloured by category", fontsize=12)
     plt.tight_layout(rect=[0, 0.06, 1, 1])
     plt.show()
+
+
+def plot_tsne_comparison(
+    metadata_or_base: Union[List[Dict], np.ndarray],
+    embeddings_or_tuned: np.ndarray,
+    labels: Optional[List[str]] = None,
+    *,
+    parquet_dir: Optional[str] = None,
+    base_model_name: str = "sentence-transformers/all-MiniLM-L6-v2",
+) -> Optional[Tuple[np.ndarray, np.ndarray, List[Dict]]]:
+    """Compare base MiniLM vs fine-tuned embeddings with a t-SNE plot.
+
+    **High-level (recommended):** pass ``metadata`` and ``tuned_embeddings`` (omit
+    ``labels``). Loads ``text_clean`` from Parquet, aligns rows that exist in both
+    sources, encodes text with the base model, plots, and returns
+    ``(base_embs, tuned_embs, aligned_metadata)`` for downstream metrics.
+
+    **Low-level:** pass ``base_embs``, ``tuned_embs``, and ``labels`` (three
+    positional args) to plot precomputed arrays only; returns ``None``.
+    """
+    if labels is not None:
+        _plot_tsne_side_by_side(
+            np.asarray(metadata_or_base),
+            np.asarray(embeddings_or_tuned),
+            labels,
+        )
+        return None
+
+    import ray.data
+    from sentence_transformers import SentenceTransformer
+
+    metadata = metadata_or_base  # type: ignore[assignment]
+    tuned_embeddings = np.asarray(embeddings_or_tuned)
+
+    root = parquet_dir or os.path.join(os.path.abspath("."), "data", "preprocessed")
+    records = (
+        ray.data.read_parquet(root)
+        .select_columns(["product_id", "text_clean"])
+        .take_all()
+    )
+    id_to_text = {r["product_id"]: r["text_clean"] for r in records}
+
+    idx = [i for i, m in enumerate(metadata) if m["product_id"] in id_to_text]
+    if len(idx) < len(metadata):
+        print(
+            f"Note: {len(metadata) - len(idx)} products in metadata are missing from "
+            f"preprocessed Parquet; plotting {len(idx)} aligned rows."
+        )
+    if not idx:
+        raise ValueError("No metadata rows overlap Parquet product_id values.")
+
+    aligned_metadata = [metadata[i] for i in idx]
+    ft_embs = tuned_embeddings[idx]
+    texts = [id_to_text[m["product_id"]] for m in aligned_metadata]
+
+    base_embs = SentenceTransformer(base_model_name).encode(
+        texts, convert_to_numpy=True
+    )
+    category_labels = [m["category"] for m in aligned_metadata]
+    _plot_tsne_side_by_side(base_embs, ft_embs, category_labels)
+    return base_embs, ft_embs, aligned_metadata
 
 
 def compute_category_precision_at_5(embeddings, metadata):
