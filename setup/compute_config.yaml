@@ -1,0 +1,5 @@
+head_node:
+  required_resources:
+    CPU: 7
+    memory: 14Gi
+worker_nodes: []

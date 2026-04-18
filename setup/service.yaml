@@ -46,6 +46,7 @@ requirements:
   - torch
   - transformers
   - sentence-transformers
+  - hf_transfer
   - pillow
   - numpy
   - fastapi
