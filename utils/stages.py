@@ -72,12 +72,21 @@ def run_training(
     Saves the best checkpoint to *model_output_dir* and returns the Ray Train
     ``Result`` object (includes ``metrics_dataframe`` for plotting).
     """
+    import glob
+
     import torch
     from ray.train import CheckpointConfig, FailureConfig, RunConfig, ScalingConfig
     from ray.train.torch import TorchTrainer
     from sentence_transformers import SentenceTransformer
 
     from .training import train_loop_per_worker
+
+    parquet_files = glob.glob(os.path.join(preprocessed_dir, "*.parquet"))
+    if not parquet_files:
+        raise FileNotFoundError(
+            f"No parquet files found in '{preprocessed_dir}'. "
+            "Run Stage 1 (preprocessing) first."
+        )
 
     t0 = time.time()
     print("=" * 60)
