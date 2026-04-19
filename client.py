@@ -40,14 +40,14 @@ def test_health():
 
 
 def test_recommend_demo():
-    """Generate a synthetic product image and call /recommend."""
-    from utils import make_product_image, PRODUCTS
+    """Send a real product image and call /recommend."""
+    from utils import get_product_image, PRODUCTS
 
-    print("=== /recommend — demo synthetic image ===")
+    print("=== /recommend — demo product image ===")
 
     # Use the first product (Wireless Headphones) as query image
     product = PRODUCTS[0]
-    img_arr = make_product_image(product, seed=0)
+    img_arr = get_product_image(product)
     img_pil = Image.fromarray(img_arr)
 
     payload = {"image_base64": encode_image(img_pil)}

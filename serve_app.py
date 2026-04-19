@@ -62,9 +62,21 @@ from starlette.requests import Request
 
 BLIP_MODEL = "Salesforce/blip-image-captioning-base"
 _HERE = Path(__file__).parent.resolve()
-EMBEDDING_MODEL_DIR = os.environ.get(
-    "EMBEDDING_MODEL_DIR", str(_HERE / "models/embedding_model")
+
+# Model resolution order (first match wins):
+#  1. Env var EMBEDDING_MODEL_DIR (explicit override)
+#  2. Cluster storage fine-tuned model (written by notebook when /mnt/cluster_storage exists)
+#  3. Local models/embedding_model (pushed or generated locally)
+#  4. HuggingFace model ID — pre-cached in container image (Dockerfile bakes it in)
+_CLUSTER_MODEL = Path("/mnt/cluster_storage") / "ecomm_embedding_model"
+_LOCAL_MODEL = _HERE / "models/embedding_model"
+_default_model_dir = (
+    str(_CLUSTER_MODEL) if _CLUSTER_MODEL.exists()
+    else str(_LOCAL_MODEL) if _LOCAL_MODEL.exists()
+    else "sentence-transformers/all-MiniLM-L6-v2"
 )
+
+EMBEDDING_MODEL_DIR = os.environ.get("EMBEDDING_MODEL_DIR", _default_model_dir)
 EMBEDDINGS_PATH = os.environ.get(
     "EMBEDDINGS_PATH", str(_HERE / "models/product_embeddings.npy")
 )
