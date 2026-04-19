@@ -193,7 +193,12 @@ def plot_tsne_comparison(
 
 
 def compute_category_precision_at_k(embeddings, metadata, k: int = 5):
-    """Return fraction of top-k neighbors sharing the same category (macro-averaged)."""
+    """Share of each product's k nearest neighbors (by cosine similarity) in the same category.
+
+    Often hits 100% when product text already matches its category; use
+    ``mean_rank_first_cross_category_neighbor`` or ``mean_intra_inter_sim_gap``
+    to compare base vs fine-tuned models in that case.
+    """
     n = embeddings / np.linalg.norm(embeddings, axis=1, keepdims=True)
     sim = n @ n.T
     np.fill_diagonal(sim, -np.inf)
@@ -204,6 +209,48 @@ def compute_category_precision_at_k(embeddings, metadata, k: int = 5):
             for i in range(len(embeddings))
         ]
     )
+
+
+def mean_rank_first_cross_category_neighbor(
+    embeddings: np.ndarray, metadata: List[Dict]
+) -> float:
+    """Average rank when others are sorted by similarity: position of the closest other-category item.
+
+    Rank 1 means the most similar product to you is already from another category.
+    Higher values mean other categories start further down the similarity-sorted list.
+    """
+    n = embeddings / np.linalg.norm(embeddings, axis=1, keepdims=True)
+    sim = n @ n.T
+    np.fill_diagonal(sim, -np.inf)
+    cats = [m["category"] for m in metadata]
+    ranks: List[int] = []
+    for i in range(len(embeddings)):
+        order = np.argsort(-sim[i])
+        for rank_pos, j in enumerate(order, start=1):
+            if cats[j] != cats[i]:
+                ranks.append(rank_pos)
+                break
+    return float(np.mean(ranks)) if ranks else float("nan")
+
+
+def mean_intra_inter_sim_gap(embeddings: np.ndarray, metadata: List[Dict]) -> float:
+    """Average gap: similarity to same-category products minus similarity to other categories."""
+    n = embeddings / np.linalg.norm(embeddings, axis=1, keepdims=True)
+    sim = n @ n.T
+    np.fill_diagonal(sim, np.nan)
+    cats = [m["category"] for m in metadata]
+    gaps: List[float] = []
+    for i in range(len(embeddings)):
+        intra = [
+            sim[i, j]
+            for j in range(len(embeddings))
+            if j != i and cats[j] == cats[i]
+        ]
+        inter = [sim[i, j] for j in range(len(embeddings)) if cats[j] != cats[i]]
+        if not intra or not inter:
+            continue
+        gaps.append(float(np.nanmean(intra) - np.nanmean(inter)))
+    return float(np.mean(gaps)) if gaps else float("nan")
 
 
 def compute_category_precision_at_5(embeddings, metadata):
