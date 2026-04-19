@@ -180,23 +180,40 @@ class ProductRecommender:
     Embed a query text with the fine-tuned sentence-transformer, then return
     the top-K most similar products via cosine similarity over a pre-computed
     embedding matrix.
+
+    Paths are accepted as constructor arguments so Ray Serve workers (which
+    do not inherit the driver's ``os.environ`` from a notebook) still load the
+    same model and index files as the process that called ``bind()``.
     """
 
-    def __init__(self):
+    def __init__(
+        self,
+        embedding_model_dir: str | None = None,
+        embeddings_path: str | None = None,
+        metadata_path: str | None = None,
+    ):
         from sentence_transformers import SentenceTransformer
 
-        print(
-            f"[ProductRecommender] Loading embedding model from {EMBEDDING_MODEL_DIR} …"
+        model_dir = (
+            embedding_model_dir
+            if embedding_model_dir is not None
+            else EMBEDDING_MODEL_DIR
         )
-        self.model = SentenceTransformer(EMBEDDING_MODEL_DIR)
+        emb_path = (
+            embeddings_path if embeddings_path is not None else EMBEDDINGS_PATH
+        )
+        meta_path = metadata_path if metadata_path is not None else METADATA_PATH
+
+        print(f"[ProductRecommender] Loading embedding model from {model_dir} …")
+        self.model = SentenceTransformer(model_dir)
 
         print(f"[ProductRecommender] Loading product index …")
-        self.embeddings = np.load(EMBEDDINGS_PATH).astype(np.float32)  # (N, D)
+        self.embeddings = np.load(emb_path).astype(np.float32)  # (N, D)
         # L2-normalise for fast cosine via dot product
         norms = np.linalg.norm(self.embeddings, axis=1, keepdims=True) + 1e-9
         self.embeddings_norm = self.embeddings / norms
 
-        with open(METADATA_PATH) as f:
+        with open(meta_path) as f:
             self.metadata = json.load(f)  # list of {product_id, name, category}
 
         print(f"[ProductRecommender] Ready. {len(self.metadata)} products indexed.")
@@ -319,7 +336,11 @@ class RecommendationService:
 
 app = RecommendationService.bind(
     image_to_text=ImageToText.bind(),
-    product_recommender=ProductRecommender.bind(),
+    product_recommender=ProductRecommender.bind(
+        embedding_model_dir=EMBEDDING_MODEL_DIR,
+        embeddings_path=EMBEDDINGS_PATH,
+        metadata_path=METADATA_PATH,
+    ),
 )
 
 
