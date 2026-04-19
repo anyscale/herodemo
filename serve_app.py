@@ -76,13 +76,23 @@ _default_model_dir = (
     else "sentence-transformers/all-MiniLM-L6-v2"
 )
 
+_CLUSTER_EMBEDDINGS = Path("/mnt/cluster_storage") / "ecomm_product_embeddings.npy"
+_LOCAL_EMBEDDINGS = _HERE / "models/product_embeddings.npy"
+_default_embeddings = (
+    str(_CLUSTER_EMBEDDINGS) if _CLUSTER_EMBEDDINGS.exists()
+    else str(_LOCAL_EMBEDDINGS)
+)
+
+_CLUSTER_METADATA = Path("/mnt/cluster_storage") / "ecomm_product_metadata.json"
+_LOCAL_METADATA = _HERE / "models/product_metadata.json"
+_default_metadata = (
+    str(_CLUSTER_METADATA) if _CLUSTER_METADATA.exists()
+    else str(_LOCAL_METADATA)
+)
+
 EMBEDDING_MODEL_DIR = os.environ.get("EMBEDDING_MODEL_DIR", _default_model_dir)
-EMBEDDINGS_PATH = os.environ.get(
-    "EMBEDDINGS_PATH", str(_HERE / "models/product_embeddings.npy")
-)
-METADATA_PATH = os.environ.get(
-    "METADATA_PATH", str(_HERE / "models/product_metadata.json")
-)
+EMBEDDINGS_PATH = os.environ.get("EMBEDDINGS_PATH", _default_embeddings)
+METADATA_PATH = os.environ.get("METADATA_PATH", _default_metadata)
 
 TOP_K = int(os.environ.get("TOP_K", "5"))
 

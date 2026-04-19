@@ -146,14 +146,14 @@ def plot_tsne_comparison(
     embeddings_or_tuned: np.ndarray,
     labels: Optional[List[str]] = None,
     *,
-    parquet_dir: Optional[str] = None,
+    catalog_records: Optional[List[Dict]] = None,
     base_model_name: str = "sentence-transformers/all-MiniLM-L6-v2",
 ) -> Optional[Tuple[np.ndarray, np.ndarray, List[Dict]]]:
     """Compare base MiniLM vs fine-tuned embeddings with a t-SNE plot.
 
-    **High-level (recommended):** pass ``metadata`` and ``tuned_embeddings`` (omit
-    ``labels``). Loads ``text_clean`` from Parquet, aligns rows that exist in both
-    sources, encodes text with the base model, plots, and returns
+    **High-level (recommended):** pass ``metadata``, ``tuned_embeddings``, and
+    ``catalog_records`` (list of dicts with ``product_id`` and ``text_clean``).
+    Aligns rows, encodes text with the base model, plots, and returns
     ``(base_embs, tuned_embs, aligned_metadata)`` for downstream metrics.
 
     **Low-level:** pass ``base_embs``, ``tuned_embs``, and ``labels`` (three
@@ -167,28 +167,18 @@ def plot_tsne_comparison(
         )
         return None
 
-    import ray.data
     from sentence_transformers import SentenceTransformer
 
     metadata = metadata_or_base  # type: ignore[assignment]
     tuned_embeddings = np.asarray(embeddings_or_tuned)
 
-    root = parquet_dir or os.path.join(os.path.abspath("."), "data", "preprocessed")
-    records = (
-        ray.data.read_parquet(root)
-        .select_columns(["product_id", "text_clean"])
-        .take_all()
-    )
-    id_to_text = {r["product_id"]: r["text_clean"] for r in records}
+    if catalog_records is None:
+        raise ValueError("catalog_records is required")
+    id_to_text = {r["product_id"]: r["text_clean"] for r in catalog_records}
 
     idx = [i for i, m in enumerate(metadata) if m["product_id"] in id_to_text]
-    if len(idx) < len(metadata):
-        print(
-            f"Note: {len(metadata) - len(idx)} products in metadata are missing from "
-            f"preprocessed Parquet; plotting {len(idx)} aligned rows."
-        )
     if not idx:
-        raise ValueError("No metadata rows overlap Parquet product_id values.")
+        raise ValueError("No metadata rows overlap catalog_records product_id values.")
 
     aligned_metadata = [metadata[i] for i in idx]
     ft_embs = tuned_embeddings[idx]
@@ -202,15 +192,19 @@ def plot_tsne_comparison(
     return base_embs, ft_embs, aligned_metadata
 
 
-def compute_category_precision_at_5(embeddings, metadata):
-    """Return fraction of top-5 neighbors sharing the same category (macro-averaged)."""
+def compute_category_precision_at_k(embeddings, metadata, k: int = 5):
+    """Return fraction of top-k neighbors sharing the same category (macro-averaged)."""
     n = embeddings / np.linalg.norm(embeddings, axis=1, keepdims=True)
     sim = n @ n.T
     np.fill_diagonal(sim, -np.inf)
     cats = [m["category"] for m in metadata]
     return np.mean(
         [
-            sum(cats[j] == cats[i] for j in np.argsort(sim[i])[-5:]) / 5
+            sum(cats[j] == cats[i] for j in np.argsort(sim[i])[-k:]) / k
             for i in range(len(embeddings))
         ]
     )
+
+
+def compute_category_precision_at_5(embeddings, metadata):
+    return compute_category_precision_at_k(embeddings, metadata, k=5)
