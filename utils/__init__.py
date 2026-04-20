@@ -359,3 +359,86 @@ def init_ray() -> None:
         logging_level=logging.WARNING,
     )
     ray.data.DataContext.get_current().enable_progress_bars = True
+
+
+# ---------------------------------------------------------------------------
+# Notebook convenience helpers
+# ---------------------------------------------------------------------------
+
+def attach_clean_text(records: List[Dict]) -> List[Dict]:
+    """Add a `text_clean` field to each record (in-place), derived from
+    `training_text`. Same cleaning rules as :func:`clean_text`.
+    """
+    for r in records:
+        r["text_clean"] = clean_text(r["training_text"])
+    return records
+
+
+def sample_per_category(
+    records: List[Dict],
+    n_per_category: int,
+    seed: int = 42,
+) -> List[Dict]:
+    """Return a class-balanced sample — up to *n_per_category* items per
+    `category` — which gives contrastive training enough positives for every
+    category even when the dataset is large.
+    """
+    from collections import defaultdict
+
+    buckets: Dict[str, List[Dict]] = defaultdict(list)
+    for r in records:
+        buckets[r["category"]].append(r)
+
+    rng = random.Random(seed)
+    sampled: List[Dict] = []
+    for bucket in buckets.values():
+        k = min(n_per_category, len(bucket))
+        sampled.extend(rng.sample(bucket, k))
+    return sampled
+
+
+def resolve_artifact_paths(here: Optional[str] = None) -> Dict[str, str]:
+    """Pick where to read/write models + embeddings.
+
+    On Anyscale clusters we prefer `/mnt/cluster_storage` so every node sees
+    the same files; on a laptop we fall back to a local `models/` folder.
+    Returns a dict with keys: model_dir, embeddings_path, metadata_path,
+    train_result_dir.
+    """
+    here = here or os.path.abspath(".")
+    shared = "/mnt/cluster_storage"
+    use_shared = os.path.isdir(shared)
+    base = shared if use_shared else os.path.join(here, "models")
+
+    def _p(shared_name: str, local_name: str) -> str:
+        return (
+            os.path.join(shared, shared_name)
+            if use_shared
+            else os.path.join(here, "models", local_name)
+        )
+
+    return {
+        "model_dir":        _p("ecomm_embedding_model",    "embedding_model"),
+        "embeddings_path":  _p("ecomm_product_embeddings.npy", "product_embeddings.npy"),
+        "metadata_path":    _p("ecomm_product_metadata.json",  "product_metadata.json"),
+        "train_result_dir": _p("ecomm_ray_train_results", "ray_train_results"),
+    }
+
+
+def encode_image_base64(image_array: np.ndarray, fmt: str = "JPEG") -> str:
+    """Encode a (H,W,3) numpy image to a base64 ASCII string — the payload
+    shape our `/recommend` endpoint expects.
+    """
+    import base64
+    return base64.b64encode(image_to_bytes(image_array, fmt=fmt)).decode()
+
+
+def post_recommend(
+    image_array: np.ndarray,
+    url: str = "http://localhost:8000/recommend",
+) -> Dict:
+    """POST an image to the recommendation endpoint and return the JSON body."""
+    import requests
+
+    payload = {"image_base64": encode_image_base64(image_array)}
+    return requests.post(url, json=payload).json()

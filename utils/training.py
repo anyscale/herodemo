@@ -2,6 +2,8 @@
 
 import os
 import tempfile
+from pathlib import Path
+from typing import List, Dict
 
 import numpy as np
 import torch
@@ -10,6 +12,69 @@ from torch.utils.data import DataLoader, Dataset
 from ray.train import Checkpoint, get_checkpoint, get_context, report
 
 SEED = 42
+
+
+def build_embedding_trainer(
+    records: List[Dict],
+    train_result_dir: str,
+    base_model: str = "sentence-transformers/all-MiniLM-L6-v2",
+    epochs: int = 2,
+    batch_size: int = 8,
+    lr: float = 2e-5,
+    seed: int = SEED,
+):
+    """Build a Ray :class:`TorchTrainer` configured for contrastive fine-tuning.
+
+    Keeps checkpoint/failure config next to the training loop so the notebook
+    only has to say *what* it wants to train, not *how* Ray Train wires it up.
+    """
+    from ray.train import (
+        CheckpointConfig,
+        FailureConfig,
+        RunConfig,
+        ScalingConfig,
+    )
+    from ray.train.torch import TorchTrainer
+
+    return TorchTrainer(
+        train_loop_per_worker=train_loop_per_worker,
+        train_loop_config={
+            "base_model": base_model,
+            "epochs": epochs,
+            "batch_size": batch_size,
+            "lr": lr,
+            "seed": seed,
+            "records": records,
+        },
+        scaling_config=ScalingConfig(
+            num_workers=1,
+            use_gpu=torch.cuda.is_available(),
+        ),
+        run_config=RunConfig(
+            name="ecomm_embedding_finetune",
+            storage_path=os.path.abspath(train_result_dir),
+            checkpoint_config=CheckpointConfig(
+                num_to_keep=2,
+                checkpoint_score_attribute="train_loss",
+                checkpoint_score_order="min",
+            ),
+            failure_config=FailureConfig(max_failures=1),
+        ),
+    )
+
+
+def save_best_sentence_transformer(result, output_dir: str) -> str:
+    """Restore the lowest-loss checkpoint from a Ray Train `Result` and save it
+    in SentenceTransformer format — i.e. a folder that `SentenceTransformer(path)`
+    can load directly for serving.
+    """
+    from sentence_transformers import SentenceTransformer
+
+    Path(output_dir).mkdir(parents=True, exist_ok=True)
+    best_checkpoint = result.best_checkpoints[0][0]
+    with best_checkpoint.as_directory() as ckpt_dir:
+        SentenceTransformer(ckpt_dir).save(output_dir)
+    return output_dir
 
 
 class ContrastivePairDataset(Dataset):
