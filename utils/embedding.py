@@ -56,7 +56,7 @@ def run_batch_embedding(
             fn_constructor_kwargs={"model_dir": model_dir},
             batch_size=batch_size,
             num_cpus=1,
-            concurrency=2,
+            compute=ray.data.ActorPoolStrategy(size=2),
             batch_format="numpy",
         )
         .take_all()
