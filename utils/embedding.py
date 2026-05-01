@@ -1,36 +1,17 @@
-"""Batch embedding utilities for the product catalog."""
+"""Persistence helpers for the batch embedding stage.
+
+The actor + ``map_batches`` call that actually computes embeddings now lives
+inline in ``notebook.ipynb`` (Stage 3) so readers can see the canonical Ray
+Data pattern instead of a one-liner import. This module keeps just the
+post-processing step that splits actor output into a dense ``.npy`` matrix
+and a small JSON sidecar — boilerplate that doesn't add to the demo.
+"""
 
 import json
 from pathlib import Path
-from typing import List, Dict
+from typing import Dict, List
 
 import numpy as np
-import ray
-
-
-def embed_catalog_in_parallel(
-    ds: "ray.data.Dataset",
-    model_dir: str,
-    pool_size: int = 2,
-    batch_size: int = 8,
-) -> List[Dict]:
-    """Run the fine-tuned model across `ds` with an actor pool.
-
-    Each actor loads the model exactly once and then streams batches through
-    it, so cost amortises across the whole catalog instead of per-row.
-    Scaling up is a matter of bumping `pool_size`.
-    """
-    assert Path(model_dir).exists() and any(Path(model_dir).iterdir()), (
-        f"Model not found at {model_dir} — run the fine-tuning stage first"
-    )
-    return ds.map_batches(
-        ProductEmbedder,
-        fn_constructor_kwargs={"model_dir": model_dir},
-        batch_size=batch_size,
-        num_cpus=1,
-        compute=ray.data.ActorPoolStrategy(size=pool_size),
-        batch_format="numpy",
-    ).take_all()
 
 
 def save_embeddings_and_metadata(
@@ -52,21 +33,3 @@ def save_embeddings_and_metadata(
     with open(metadata_path, "w") as f:
         json.dump(metadata, f, indent=2)
     return embeddings, metadata
-
-
-class ProductEmbedder:
-    """Ray Data actor: loads the fine-tuned model once, encodes batches of text."""
-
-    def __init__(self, model_dir: str):
-        from sentence_transformers import SentenceTransformer
-        self.model = SentenceTransformer(model_dir)
-
-    def __call__(self, batch: dict) -> dict:
-        texts = batch["text_clean"].tolist()
-        embs = self.model.encode(texts, convert_to_numpy=True, show_progress_bar=False)
-        return {
-            "product_id": batch["product_id"],
-            "name":       batch["name"],
-            "category":   batch["category"],
-            "embedding":  list(embs),
-        }
