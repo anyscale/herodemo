@@ -2,7 +2,7 @@
 E-Commerce Recommendation System — Ray Serve Application
 =========================================================
 
-Stage 3 of 3:  Online recommendation endpoint
+Stage 4 of 4:  Online recommendation endpoint
 
 Pipeline (multi-model composition)
 -----------------------------------
@@ -135,8 +135,6 @@ class ImageToText:
 
         dummy = PILImage.new("RGB", (224, 224), color=(128, 128, 128))
         inputs = self.processor(images=dummy, return_tensors="pt").to(self.device)
-        import torch
-
         with torch.no_grad():
             self.model.generate(**inputs, max_new_tokens=30)
 
@@ -334,14 +332,29 @@ class RecommendationService:
 # Application binding
 # ---------------------------------------------------------------------------
 
-app = RecommendationService.bind(
-    image_to_text=ImageToText.bind(),
-    product_recommender=ProductRecommender.bind(
-        embedding_model_dir=EMBEDDING_MODEL_DIR,
-        embeddings_path=EMBEDDINGS_PATH,
-        metadata_path=METADATA_PATH,
-    ),
-)
+
+def build_app(
+    embedding_model_dir: str | None = None,
+    embeddings_path: str | None = None,
+    metadata_path: str | None = None,
+):
+    """Bind the Serve app with explicit paths.
+
+    Lets the notebook drive Stage 4 without mutating ``os.environ`` and
+    reloading the module — the paths flow through ``bind()`` so each replica
+    gets them on construction.
+    """
+    return RecommendationService.bind(
+        image_to_text=ImageToText.bind(),
+        product_recommender=ProductRecommender.bind(
+            embedding_model_dir=embedding_model_dir or EMBEDDING_MODEL_DIR,
+            embeddings_path=embeddings_path or EMBEDDINGS_PATH,
+            metadata_path=metadata_path or METADATA_PATH,
+        ),
+    )
+
+
+app = build_app()
 
 
 # ---------------------------------------------------------------------------

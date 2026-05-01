@@ -2,4 +2,10 @@ head_node:
   required_resources:
     CPU: 7
     memory: 14Gi
-worker_nodes: []
+worker_nodes:
+  - name: cpu-worker
+    required_resources:
+      CPU: 4
+      memory: 8Gi
+    min_nodes: 1
+    max_nodes: 1

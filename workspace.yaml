@@ -4,9 +4,19 @@ image_uri: anyscale/ray:2.55.0-slim-py312
 
 requirements: setup/requirements.txt
 
+# Anyscale's head node runs with CPU=0 in the Ray scheduler (reserved for
+# orchestration), so Ray Train workers and Ray Data actors need a worker.
+# Pinning a single small CPU worker (min=max=1) keeps startup predictable
+# and avoids autoscaler delay during the demo.
 compute_config:
   head_node:
     required_resources:
       CPU: 7
       memory: 14Gi
-  worker_nodes: []
+  worker_nodes:
+    - name: cpu-worker
+      required_resources:
+        CPU: 4
+        memory: 8Gi
+      min_nodes: 1
+      max_nodes: 1
