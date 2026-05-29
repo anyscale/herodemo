@@ -2,6 +2,11 @@ torch
 transformers
 sentence-transformers
 hf_transfer
+pillow
 
-# Notebook / UI
-streamlit
+# Notebook visualization (Stage 2/3 plots + t-SNE). Not needed at serve time.
+matplotlib
+scikit-learn
+
+# The optional Streamlit demo UI is a laptop-side client, not a cluster
+# dependency — see setup/STREAMLIT_UI.md for how to run it.

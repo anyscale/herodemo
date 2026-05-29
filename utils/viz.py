@@ -1,8 +1,18 @@
-"""Visualization utilities for embedding analysis."""
+"""Visualization utilities for the demo notebook.
+
+Two flavours of plots live here:
+
+* **Embedding analysis** — t-SNE, similarity heatmap, quality report.
+* **Ray-value plots** — work distribution across a Ray Data actor pool,
+  Ray Train checkpoint history, and a Ray Serve deployment-graph summary.
+  These exist so the notebook can *show* (not just tell) the things Ray
+  gives you: streaming parallelism, automatic checkpoint management, and
+  independently-scaled deployments.
+"""
 
 import os
 from collections import Counter
-from typing import Callable, Dict, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -42,6 +52,100 @@ def plot_training_loss(metrics_dataframe) -> None:
     plt.title("Training Loss")
     plt.tight_layout()
     plt.show()
+
+
+def plot_checkpoint_history(result) -> None:
+    """Visualise the checkpoints Ray Train kept after the run.
+
+    The point of this plot: Ray Train's ``CheckpointConfig`` automatically
+    keeps the best-N checkpoints by a chosen metric and discards the rest —
+    no manual bookkeeping. The bars are the kept checkpoints; the line
+    behind them is the full per-epoch loss curve so you can see *which*
+    epochs survived the policy.
+    """
+    metrics = result.metrics_dataframe
+    kept = result.best_checkpoints  # [(Checkpoint, metrics_dict), ...]
+
+    kept_losses = [m.get("train_loss") for _, m in kept]
+    kept_epochs = [m.get("epoch") for _, m in kept]
+
+    fig, ax = plt.subplots(figsize=(7, 4))
+    ax.plot(
+        metrics["epoch"] + 1, metrics["train_loss"],
+        color="lightgrey", marker="o", linewidth=2, label="all epochs",
+    )
+    ax.scatter(
+        [e + 1 for e in kept_epochs], kept_losses,
+        color="#2a9d8f", s=180, zorder=5, label=f"kept by Ray Train (n={len(kept)})",
+    )
+    for e, l in zip(kept_epochs, kept_losses):
+        ax.annotate(
+            f"epoch {e + 1}\nloss {l:.4f}", (e + 1, l),
+            textcoords="offset points", xytext=(10, 10), fontsize=8,
+        )
+    ax.set_xlabel("Epoch")
+    ax.set_ylabel("train_loss")
+    ax.set_title("Ray Train CheckpointConfig — which checkpoints survived")
+    ax.legend(loc="upper right")
+    plt.tight_layout()
+    plt.show()
+
+
+def plot_actor_pool_throughput(
+    actor_assignments: List[str],
+    *,
+    pool_size: Optional[int] = None,
+) -> None:
+    """Show how a Ray Data ``ActorPoolStrategy`` distributed work.
+
+    ``actor_assignments`` is one actor-id per processed row, captured from
+    inside the embedder actor. The plot is items-per-actor — bars that all
+    look similar mean Ray Data load-balanced batches evenly across the
+    pool. A single tall bar means everything piled on one worker.
+    """
+    counts = Counter(actor_assignments)
+    actors = list(counts.keys())
+    items = [counts[a] for a in actors]
+    short = [f"actor-{i+1}\n({a[:6]})" for i, a in enumerate(actors)]
+
+    fig, ax = plt.subplots(figsize=(7, 4))
+    bars = ax.bar(short, items, color="#264653")
+    ax.set_ylabel("Rows processed")
+    ax.set_title(
+        f"Ray Data actor pool — work distribution across {len(actors)} replica(s)"
+        + (f" of {pool_size}" if pool_size else "")
+    )
+    ax.bar_label(bars, padding=3, fontsize=9)
+
+    total = sum(items)
+    if len(items) > 1:
+        balance = min(items) / max(items)
+        ax.text(
+            0.99, 0.95,
+            f"total rows: {total}\nbalance (min/max): {balance:.0%}",
+            transform=ax.transAxes, ha="right", va="top", fontsize=9,
+            bbox=dict(facecolor="white", edgecolor="lightgrey"),
+        )
+    plt.tight_layout()
+    plt.show()
+
+
+def print_serve_topology(deployments: List[Dict[str, Any]]) -> None:
+    """ASCII summary of the Ray Serve deployment graph.
+
+    ``deployments`` is a list of ``{"name", "replicas", "num_cpus", "role"}``
+    dicts — the notebook builds it by introspecting the bound app. The
+    output highlights what Ray Serve gives you over a monolithic FastAPI
+    process: each box scales and upgrades independently.
+    """
+    print("Ray Serve deployment graph")
+    print("=" * 60)
+    for i, d in enumerate(deployments):
+        connector = "│" if i < len(deployments) - 1 else " "
+        print(f"┌─ {d['name']:<22} ({d['role']})")
+        print(f"│   replicas : {d['replicas']}    num_cpus/replica : {d['num_cpus']}")
+        print(f"{connector}")
+    print("All three scale independently — a BLIP spike doesn't add MiniLM replicas.")
 
 
 def plot_recommendations(
