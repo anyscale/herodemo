@@ -1,0 +1,11 @@
+# Exclude heavy local artifacts when Ray packages working_dir for runtime_env.
+# Keep only code/assets needed by workers.
+core.*
+.git/
+__pycache__/
+.ipynb_checkpoints/
+ray_results/
+logs/
+models/
+data/raw/
+*.ray_tmp/

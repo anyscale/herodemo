@@ -344,7 +344,12 @@ def decode_image_tensor(raw: bytes) -> np.ndarray:
 # ---------------------------------------------------------------------------
 
 def init_ray() -> None:
-    """Initialize Ray with reduced logging (idempotent)."""
+    """Initialize Ray with reduced logging (idempotent).
+
+    When connecting to a remote cluster, Ray may package the current working
+    directory as the runtime_env `working_dir`. Keep that package small by
+    excluding local artifacts that are not needed by workers.
+    """
     import logging
     import ray
     import ray.data
@@ -353,10 +358,27 @@ def init_ray() -> None:
                  "ray._private", "ray.runtime_env"]:
         logging.getLogger(name).setLevel(logging.WARNING)
 
+    runtime_env = {
+        "excludes": [
+            # Large local crash dumps and temporary outputs can exceed Ray's
+            # runtime package upload limit.
+            "core.*",
+            "__pycache__/",
+            ".ipynb_checkpoints/",
+            ".git/",
+            "ray_results/",
+            "logs/",
+            "models/",
+            "data/raw/",
+            "*.ray_tmp/",
+        ]
+    }
+
     ray.init(
         ignore_reinit_error=True,
         log_to_driver=False,
         logging_level=logging.WARNING,
+        runtime_env=runtime_env,
     )
     ray.data.DataContext.get_current().enable_progress_bars = True
 
