@@ -1,0 +1,19 @@
+name: herodemo-notebook-run-v2
+image_uri: anyscale/ray:2.55.1-slim-py312-cu129
+entrypoint: papermill notebook.ipynb /tmp/notebook_out.ipynb --kernel python3 --log-output
+requirements:
+  - torch
+  - transformers
+  - sentence-transformers
+  - hf_transfer
+  - pillow
+  - matplotlib
+  - scikit-learn
+  - papermill
+compute_config:
+  cloud: /subscriptions/78509d30-3712-444b-9fbc-5de6bcbeaa6d/resourcegroups/adhippublictest/providers/anyscale.platform/clouds/adhipcloudaks1
+  head_node:
+    required_resources:
+      CPU: 8
+      memory: 32Gi
+max_retries: 0

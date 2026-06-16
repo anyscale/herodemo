@@ -29,16 +29,13 @@ applications:
 
 # CPU-only cluster (BLIP-base and MiniLM run fine on CPU for demo traffic)
 compute_config:
+  cloud: /subscriptions/78509d30-3712-444b-9fbc-5de6bcbeaa6d/resourcegroups/adhippublictest/providers/anyscale.platform/clouds/adhipcloudaks1
   head_node:
-    instance_type: m5.2xlarge
-  worker_nodes:
-    - instance_type: m5.2xlarge
-      min_nodes: 0
-      max_nodes: 3
+    required_resources:
+      CPU: 8
+      memory: 32Gi
 
-# Base image — CPU-only, Python 3.12
-# Check https://docs.anyscale.com/reference/base-images for the latest
-image_uri: anyscale/ray:2.54.0-slim-py312
+image_uri: anyscale/ray:2.55.1-slim-py312-cu129
 
 working_dir: .
 
